@@ -1,4 +1,6 @@
+import cython
 
+@cython.auto_pickle(True)
 cdef class Packet:
 
     """
@@ -6,7 +8,7 @@ cdef class Packet:
 
     """
 
-    def __cinit__ (self, bytearray packet_data):
+    def __init__ (self, bytearray packet_data):
         self.packet_data = packet_data
 
         # set all values to defaults
@@ -18,3 +20,6 @@ cdef class Packet:
         self.UNKNOWN_LAYER_4_PROTOCOL = False
         self.dhcp_layer = None
         self.UNKNOWN_LAYER_5_PROTOCOL = False
+
+    # def __call__(self, *args, **kwargs):
+    #     pass

@@ -1,11 +1,12 @@
+import cython
 
 from DhcpLayer cimport *
 from utils.Utils cimport *
 
-
+@cython.auto_pickle(True)
 cdef class DhcpLayer:
 
-    def __cinit__(self):
+    def __init__(self):
         # Default values for fields. 0 means empty (aka None).
         self.fields.opcode_start = 0
         self.fields.opcode_end = 0
@@ -28,14 +29,12 @@ cdef class DhcpLayer:
         # because i don't want to use dynamic data structures
         # init options list with empty values
         self.options = [None]*50
-        #TODO debug
-        #self.options = list()
         self.fields.end_of_header = 0
 
-
+@cython.auto_pickle(True)
 cdef class dhcp_option:
 
-    def __cinit__(self):
+    def __init__(self):
         # set all attributes to init values
         self.option_start = 0
         self.option_end = 0

@@ -1,3 +1,4 @@
+import cython
 
 from EthernetLayer cimport *
 from utils.Utils cimport *
@@ -5,9 +6,10 @@ from ProtocolTypes cimport Protocols
 from IPv4Layer cimport parse_ipv4
 
 
+@cython.auto_pickle(True)
 cdef class EthernetLayer:
 
-    def __cinit__(self):
+    def __init__(self):
         # Default values for fields. 0 means empty (aka None).
         self.fields.src_mac_start = 0
         self.fields.src_mac_end = 0

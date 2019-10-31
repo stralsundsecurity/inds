@@ -1,6 +1,9 @@
 
 
 # Struct with arp layer fields
+import cython
+
+
 cdef struct arp_layer_fields:
 
     # The *_start index points to the first byte of a field
@@ -35,6 +38,7 @@ cdef struct arp_layer_fields:
     unsigned int end_of_header
 
 
+@cython.auto_pickle(True)
 cdef class ArpLayer:
 
     """Wrapper class around the arp_layer_fields struct."""

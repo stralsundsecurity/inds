@@ -1,3 +1,4 @@
+import math
 import traceback
 
 from network_layers.EthernetLayer cimport *
@@ -38,6 +39,40 @@ cdef unsigned int IPV4_MIN_HEADER_LENGTH = 20
 cdef unsigned int UDP_HEADER_LENGTH = 8
 # including magic cookie
 cdef unsigned int DHCP_HEADER_LENGTH = 240
+
+cpdef void parse_network_packet_parallel(read_queue, parsed_queue, unsigned int worker_id):
+
+    """
+    Function is started as an independent process.
+    It polls with a timeout of 100 sec for new packets in the read_queue.
+    If a packet can be got, it is parsed and put into the parsed_queue.
+    
+    :param read_queue: read_queue: Shared multiprocessing.Manager().Queue() for received packets
+    :param parsed_queue: parsed_queue: Shared multiprocessing.Manager().Queue() for parsed packets
+    :return: Void.
+    """
+
+    print("Started worker {0:d}.".format(worker_id))
+
+    cdef Packet result
+    cdef bytes packet
+
+    while True:
+        try:
+            packet = read_queue.get(timeout = 100)
+            result = parse_network_packet(bytearray(packet))
+            parsed_queue.put(result)
+        except:
+            # If the timeout is reached, but the queue remains empty,
+            # an exception is thrown.
+            # If this happens just continue to poll.
+            continue
+        # finally:
+        #     #TODO debug
+        #     # if (not parsed_queue.empty()) and (parsed_queue.qsize() % 1000 == 0):
+        #     #     print("parsed queue size", parsed_queue.qsize())
+
+
 
 cdef Packet parse_network_packet(bytearray packet_bytes):
 

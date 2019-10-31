@@ -1,11 +1,13 @@
+import cython
 
 from IPv4Layer cimport *
 from utils.Utils cimport *
 from ProtocolTypes cimport Protocols
 
+@cython.auto_pickle(True)
 cdef class IPv4Layer:
 
-    def __cinit__(self):
+    def __init__(self):
         # Default values for fields. 0 means empty (aka None).
         self.fields.ihl = 0
         self.fields.total_length_start = 0

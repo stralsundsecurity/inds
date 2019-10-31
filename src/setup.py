@@ -8,4 +8,5 @@ setup(
                                             "utils/*.pyx",
                                            "*.pyx"),
                             annotate=True)
+                            #compiler_directives={'language_level' : '2'})
 )

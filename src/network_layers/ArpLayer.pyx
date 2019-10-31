@@ -1,12 +1,13 @@
+import cython
 
 from EthernetLayer cimport *
 from utils.Utils cimport *
 
 
-
+@cython.auto_pickle(True)
 cdef class ArpLayer:
 
-    def __cinit__(self):
+    def __init__(self):
         # Default values for fields. 0 means empty (aka None).
         self.fields.opcode_start = 0
         self.fields.opcode_end = 0

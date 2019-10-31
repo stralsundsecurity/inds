@@ -1,5 +1,6 @@
 
 # enum with major protocol types
+
 cdef enum Protocols:
     IPv4 = 0x0800
     # not yet implemented

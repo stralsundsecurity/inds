@@ -1,12 +1,14 @@
+import cython
 
 from UdpLayer cimport *
 from utils.Utils cimport *
 
 
 
+@cython.auto_pickle(True)
 cdef class UdpLayer:
 
-    def __cinit__(self):
+    def __init__(self):
         # Default values for fields. 0 means empty (aka None).
         self.fields.source_port_start = 0
         self.fields.source_port_end = 0
