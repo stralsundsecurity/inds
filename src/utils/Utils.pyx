@@ -6,6 +6,9 @@ from network_layers.EthernetLayer cimport *
 from network_layers.ArpLayer cimport *
 from utils.PacketGenerator cimport *
 
+cpdef unsigned int convert_bytes_to_uint_wrap(bytearray data):
+    return convert_bytes_to_uint(data)
+
 cdef unsigned int convert_bytes_to_uint(bytearray value):
 
     """
@@ -15,6 +18,11 @@ cdef unsigned int convert_bytes_to_uint(bytearray value):
     :return: Converted value.
     """
     return (int.from_bytes(value, byteorder='big', signed=False))
+
+
+
+cpdef unsigned long convert_bytes_to_ulong_wrap(bytearray data):
+    return convert_bytes_to_ulong(data)
 
 cdef unsigned long convert_bytes_to_ulong(bytearray value):
 
@@ -72,7 +80,7 @@ cdef bytearray convert_int_to_bytes(unsigned int length, unsigned long value):
 
     return converted_bytes[::-1]
 
-IpToMacAssignments = dict()
+
 
 # Should be moved to a config package. Not jet implemented
 # just random values
@@ -80,7 +88,7 @@ cdef unsigned long my_mac_address = 0x84D5EEF254DE
 # 192.168.249.249
 cdef unsigned long my_ip_address = 0xC0A8F9F9
 
-cdef bytearray generate_arp_unlock_packet(unsigned long mac_address, dict ip_to_mac_assignments):
+cdef bytearray generate_arp_unlock_packet(unsigned long mac_address, ip_to_mac_assignments):
     cdef EthernetLayer ethernet_layer = EthernetLayer()
     cdef ArpLayer arp_layer = ArpLayer()
 
@@ -89,6 +97,8 @@ cdef bytearray generate_arp_unlock_packet(unsigned long mac_address, dict ip_to_
 
     arp_layer.fields.target_mac = 0xffffffffffff
     arp_layer.fields.source_mac = my_mac_address
+    #TODO debug
+    print('generating arp unlock packet with mac address', mac_address, 'and ip', ip_to_mac_assignments.get(mac_address))
     arp_layer.fields.target_ip = ip_to_mac_assignments.get(mac_address)
     arp_layer.fields.source_ip = my_ip_address
     arp_layer.fields.opcode = 0x1
@@ -96,7 +106,7 @@ cdef bytearray generate_arp_unlock_packet(unsigned long mac_address, dict ip_to_
     return generate_arp_packet(ethernet_layer, arp_layer)
 
 
-cdef void unlock_target_and_send_data(write_queue, raw_socket, buffer_size):
+cdef void unlock_target_and_send_data(write_queue, raw_socket, buffer_size, ip_to_mac_assignments):
 
     """
     Reads buffer_size packets from write_queue. Unlocks the clients from these packets via arp requests.
@@ -125,16 +135,18 @@ cdef void unlock_target_and_send_data(write_queue, raw_socket, buffer_size):
     cdef unsigned long mac_address
     cdef bytearray arp_unlock
     for mac_address in mac_address_buffer:
+        #TODO debug
+        print('a dest mac from the sending queue', mac_address)
         # generate and send an arp packet to unlock the target
-        arp_unlock = generate_arp_unlock_packet(mac_address, IpToMacAssignments)
+        arp_unlock = generate_arp_unlock_packet(mac_address, ip_to_mac_assignments)
         raw_socket.sendall(bytes(arp_unlock))
 
 
     # wait for all arp replies --> all targets are unlocked
     # Here could be some advanced logic (e.g. wait for replies, use stored response time for each target, etc.)
     # This logic can / should be implemented... someday
-    # For now just wait some time (1 ms) and hope, that all replies have arrived
-    time.sleep(0.001)
+    # For now just wait some time (3 ms) and hope, that all replies have arrived
+    time.sleep(0.003)
 
     # send all data from the packet_buffer
     for packet in packet_buffer:
@@ -146,8 +158,10 @@ cdef void unlock_target_and_send_data(write_queue, raw_socket, buffer_size):
     # return and continue doing previous stuff (e.g. listening for incoming packets)
 
 
-MacsToSpoof = set()
-cdef void spoof_target_macs(raw_socket):
+
+
+
+cdef void spoof_target_macs(raw_socket, macs_to_spoof_list):
 
     """
     Spoofs mac addresses of targets.
@@ -166,13 +180,13 @@ cdef void spoof_target_macs(raw_socket):
     cdef bytearray packet
     cdef EthernetLayer ethernet_layer = EthernetLayer()
     cdef ArpLayer arp_layer = ArpLayer()
-    ethernet_layer.fields.dst_mac = 0xffffffffffff
-    arp_layer.fields.target_mac = 0x84ddffee1454
+    ethernet_layer.fields.dst_mac = 0xaabbccddeeff
+    arp_layer.fields.target_mac = 0xaabbccddeeff
     arp_layer.fields.target_ip = 0xfd54ab47
     arp_layer.fields.source_ip = 0x45fdab84
     arp_layer.fields.opcode = 0x1
 
-    for mac in MacsToSpoof:
+    for mac in macs_to_spoof_list:
         ethernet_layer.fields.src_mac = mac
         arp_layer.fields.source_mac = mac
 
@@ -184,6 +198,41 @@ cdef void spoof_target_macs(raw_socket):
             raw_socket.sendall(bytes(packet))
         except:
             pass
+
+cdef unsigned int calculate_udp_checksum(Packet packet):
+
+    # make pseudo header
+    cdef bytearray pseudo_header = bytearray()
+    pseudo_header.extend(convert_int_to_bytes(4, packet.ipv4_layer.fields.source_ip))
+    pseudo_header.extend(convert_int_to_bytes(4, packet.ipv4_layer.fields.dest_ip))
+    pseudo_header.extend(bytearray([0]))
+    pseudo_header.extend(convert_int_to_bytes(1, 17))
+    pseudo_header.extend(convert_int_to_bytes(2, packet.udp_layer.fields.length))
+
+    # fill the current checksum of the packet with zeroes
+    packet.packet_data[packet.udp_layer.fields.checksum_start : packet.udp_layer.fields.checksum_end] = bytearray([0, 0])
+
+    # append udp data to the pseudo header in order to compute the overall checksum
+    pseudo_header.extend(packet.packet_data[packet.ipv4_layer.fields.end_of_header : ])
+    cdef unsigned int check_len = len (pseudo_header)
+    # append 0 to last byte if length is odd
+    if check_len % 2 != 0:
+        pseudo_header.extend(bytearray([0]))
+
+    cdef unsigned int checksum = 0
+    # sum all words
+    for i in range(0, check_len, 2):
+        w = (pseudo_header[i] << 8) + pseudo_header[i + 1]
+        checksum += w
+
+    # deal with carry bits
+    checksum = (checksum >> 16) + (checksum & 0xFFFF)
+    # invert result and take last 16 bits of the sum as result
+    checksum = ~checksum & 0xFFFF
+
+    #TODO debug
+    print('calculate checksum', checksum)
+    return checksum
 
 
 

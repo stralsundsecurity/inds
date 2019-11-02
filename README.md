@@ -1,4 +1,5 @@
-# inds
+# inds 
+##UNSTABLE RELEASE
 
 An (IN)line (D)hcp (S)poofer for stealth MITM attacks  on dhcp infrastructure.
 
@@ -34,10 +35,23 @@ python3 setup.py build_ext --inplace
 
 ```sh
 cd src
-python3 TestEntryPoint.py
+python3 inds.py --dhcp-server-mac aa:bb:cc:dd:ee:ff --new-subnet-mask 255.255.0.0 --new-gateway 192.168.0.144
 ```
 
-###From the developer:
+For help, type:
+```sh
+python3 inds.py --help
+```
+
+NOTE: The flow of DHCP messages heavily depends on used hardware and software.
+It might be, that clients in your network use an incompatible to this implementation dhcp message scheme.
+
+Currently only changes in subnet mask and default gateway are supported (only one gateway).
+Also only one DHCP server is supported.
+
+All parameters must be provided.
+
+### From the developer:
 
 This project is meant to be more an extended proof of concept,
 rather than a ready to use application. 

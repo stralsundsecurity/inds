@@ -1,17 +1,24 @@
 import multiprocessing
 import socket
 
+import attack
 from NetworkIO cimport *
 from utils.Parser cimport *
 from utils.Parser import *
 from utils.Utils import *
 from utils.Utils cimport *
+from attack.IncommingPacketHandler import *
+from attack.IncommingPacketHandler cimport start_spoofing_dhcp_server
 
-cdef void start_network_io(read_queue, write_queue, parsed_queue, unsigned int number_of_workers):
+
+cpdef void start_network_io(read_queue, write_queue, parsed_queue, macs_to_spoof_list, ip_to_mac_assignments, unsigned int number_of_workers):
     """
     Creates a raw socket, that listens to all passing traffic and puts it into
     the read_queue. Simultaneously packets from the write_queue, if available, 
     are sent out.
+    
+    Also some packet handle processes are created to decide, what to do with the packets,
+    and to handle the tcp attack.
     
     
     :param read_queue: Shared multiprocessing.Manager().Queue() for received packets
@@ -24,7 +31,7 @@ cdef void start_network_io(read_queue, write_queue, parsed_queue, unsigned int n
 
 
     # set up multiprocessing stuff
-    pool = multiprocessing.Pool(processes=number_of_workers)
+    pool = multiprocessing.Pool(processes=number_of_workers + 2)
     manager = multiprocessing.Manager()
 
     # Start parser worker in separate processes.
@@ -32,6 +39,16 @@ cdef void start_network_io(read_queue, write_queue, parsed_queue, unsigned int n
     for worker in range(number_of_workers):
         print("Starting worker {0:d}.".format(worker))
         pool.apply_async(parse_network_packet_parallel, (read_queue, parsed_queue, worker, ))
+
+    # Start packet handler in separate processes.
+    # Too many worker cause a too big management overhead (optimal value 2)
+    # USE ONLY ONE WORKER, BECAUSE packet_handler DOES NOT SUPPORT MULTIPROCESSING...
+    for handler in range(1):
+        print("Starting handler {0:d}.".format(handler))
+        pool.apply_async(packet_handler, (write_queue, parsed_queue, handler, macs_to_spoof_list, ip_to_mac_assignments, ))
+
+    # start spoofing dhcp server
+    start_spoofing_dhcp_server(macs_to_spoof_list)
 
     # set up socket
 
@@ -87,15 +104,15 @@ cdef void start_network_io(read_queue, write_queue, parsed_queue, unsigned int n
 
         # if no packet available for reading
         # spoof mac addresses
-        spoof_target_macs(raw_socket)
+        spoof_target_macs(raw_socket, macs_to_spoof_list)
 
 
         # Check write_queue and if not empty, send all packets
         if (not write_queue.empty()):
 
             # unlock targets and send all elements
-            unlock_target_and_send_data(write_queue, raw_socket, write_queue.qsize())
+            unlock_target_and_send_data(write_queue, raw_socket, write_queue.qsize(), ip_to_mac_assignments)
 
 
-
-
+    # join all workers of the pool
+    pool.join()

@@ -47,8 +47,8 @@ cpdef void parse_network_packet_parallel(read_queue, parsed_queue, unsigned int 
     It polls with a timeout of 100 sec for new packets in the read_queue.
     If a packet can be got, it is parsed and put into the parsed_queue.
     
-    :param read_queue: read_queue: Shared multiprocessing.Manager().Queue() for received packets
-    :param parsed_queue: parsed_queue: Shared multiprocessing.Manager().Queue() for parsed packets
+    :param read_queue: Shared multiprocessing.Manager().Queue() for received packets
+    :param parsed_queue: Shared multiprocessing.Manager().Queue() for parsed packets
     :return: Void.
     """
 
